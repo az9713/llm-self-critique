@@ -47,8 +47,8 @@ Imagine you're planning a kitchen renovation:
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/yourusername/self_critique_discover_ai.git
-cd self_critique_discover_ai
+git clone https://github.com/az9713/llm-self-critique.git
+cd llm-self-critique
 ```
 
 ### Step 2: Set Up Backend
@@ -96,7 +96,7 @@ Open your browser and go to: **http://localhost:3000**
 ## Project Structure Overview
 
 ```
-self_critique_discover_ai/
+llm-self-critique/
 │
 ├── backend/                 # Python FastAPI server
 │   ├── src/                 # Source code

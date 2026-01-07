@@ -125,8 +125,8 @@ sudo apt install git
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/self_critique_discover_ai.git
-cd self_critique_discover_ai
+git clone https://github.com/az9713/llm-self-critique.git
+cd llm-self-critique
 ```
 
 ### Step 3: Backend Setup
@@ -263,7 +263,7 @@ Open http://localhost:3000 - you should see the application.
 ### Directory Structure Explained
 
 ```
-self_critique_discover_ai/
+llm-self-critique/
 │
 ├── backend/                      # Python FastAPI application
 │   ├── pyproject.toml           # Python project config (like pom.xml/build.gradle)

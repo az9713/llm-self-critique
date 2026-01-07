@@ -46,10 +46,10 @@ Open your terminal (Command Prompt on Windows, Terminal on Mac/Linux):
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/self_critique_discover_ai.git
+git clone https://github.com/az9713/llm-self-critique.git
 
 # Enter the project folder
-cd self_critique_discover_ai
+cd llm-self-critique
 ```
 
 **What just happened?**
@@ -129,7 +129,7 @@ INFO:     Started reloader process
 Open a **new terminal window** and navigate to the project:
 
 ```bash
-cd path/to/self_critique_discover_ai/frontend
+cd path/to/llm-self-critique/frontend
 
 # Install frontend packages
 npm install

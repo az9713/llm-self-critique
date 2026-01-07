@@ -25,7 +25,7 @@ This file provides context and guidelines for Claude Code when working on this p
 ## Project Structure
 
 ```
-self_critique_discover_ai/
+llm-self-critique/
 ├── backend/
 │   ├── src/
 │   │   ├── main.py              # FastAPI app entry point
