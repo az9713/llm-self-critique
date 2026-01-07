@@ -1,5 +1,7 @@
 # Self-Critique Planning Platform
 
+> **About:** AI planning platform using LLM intrinsic self-critique. Based on Google DeepMind research (arXiv:2512.24103). Built with Claude Code + Opus 4.5.
+
 An intelligent planning system that uses Large Language Models (LLMs) with intrinsic self-critique to generate high-quality plans. Based on Google DeepMind's research on improving LLM planning through iterative refinement.
 
 ## What This Application Does
