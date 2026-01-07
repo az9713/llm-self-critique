@@ -43,3 +43,9 @@ npm-debug.log*
 
 # Misc
 .ignore
+
+# Docs - working files
+docs/*.txt
+docs/*.pdf
+docs/2026-01-06*.md
+docs/plans/
