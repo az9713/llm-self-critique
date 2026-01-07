@@ -3,6 +3,7 @@ from src.models.user import User
 from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from src.models.domain import Domain
 from src.models.planning_session import PlanningSession, PlanIteration
+from src.models.analytics import APIKey, APIKeyStatus, UsageLog, UsageAggregate
 
 __all__ = [
     "Verdict",
@@ -14,4 +15,8 @@ __all__ = [
     "Domain",
     "PlanningSession",
     "PlanIteration",
+    "APIKey",
+    "APIKeyStatus",
+    "UsageLog",
+    "UsageAggregate",
 ]
