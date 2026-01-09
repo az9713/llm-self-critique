@@ -85,7 +85,7 @@ The `src/llm/` module provides a unified interface for multiple LLM providers:
 - `LLMAdapter` base class defines the interface
 - `ClaudeAdapter` and `OpenAIAdapter` implement provider-specific logic
 - `LLMRouter` handles provider selection and fallback
-- Default model: `claude-haiku-4-5-20250514` (Claude 4.5 Haiku)
+- Default model: `claude-haiku-4-5` (Claude 4.5 Haiku)
 
 ### 3. Self-Critique Loop
 The critique system (`src/critique/`) implements:

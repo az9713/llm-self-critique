@@ -583,7 +583,7 @@ class ClaudeAdapter(LLMAdapter):
         temperature: float = 0.7,
     ) -> str:
         response = await self.client.messages.create(
-            model="claude-haiku-4-5-20250514",  # Default model
+            model="claude-haiku-4-5",  # Default model
             max_tokens=max_tokens,
             temperature=temperature,
             messages=[{"role": m.role, "content": m.content} for m in messages],
