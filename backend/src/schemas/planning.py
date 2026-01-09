@@ -34,7 +34,6 @@ class PlanIterationResponse(BaseModel):
 
 
 class PlanGenerationRequest(BaseModel):
-    session_id: UUID
     domain_pddl: str
     problem_pddl: str
     max_iterations: int = 5

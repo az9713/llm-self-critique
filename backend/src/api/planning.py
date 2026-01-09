@@ -130,7 +130,7 @@ async def generate_plan(
     # Run self-critique orchestrator
     try:
         # In production, get API keys from config/environment
-        router_instance = LLMRouter(api_keys={"claude": "mock-key"})
+        router_instance = LLMRouter()  # Loads API keys from environment
         orchestrator = SelfCritiqueOrchestrator(
             llm_router=router_instance,
             provider=LLMProvider.CLAUDE,
