@@ -33,6 +33,7 @@ Imagine you're planning a kitchen renovation:
 | [Developer Guide](docs/DEVELOPER_GUIDE.md) | Technical documentation for developers |
 | [API Reference](docs/API_REFERENCE.md) | Complete API documentation |
 | [Architecture Overview](docs/ARCHITECTURE.md) | System design and components |
+| [Paper Primer](docs/ARXIV_PAPER_PRIMER.md) | Research foundation and prompt implementation mapping |
 
 ## System Requirements
 
@@ -72,11 +73,13 @@ source venv/bin/activate
 # Install dependencies
 pip install -e ".[dev]"
 
-# Set your API key (get one from https://console.anthropic.com/)
-# On Windows:
-set ANTHROPIC_API_KEY=your-key-here
-# On Mac/Linux:
-export ANTHROPIC_API_KEY=your-key-here
+# Configure your API key (get one from https://console.anthropic.com/)
+# Option A: Create a .env file (Recommended - persists between sessions)
+echo "ANTHROPIC_API_KEY=sk-ant-your-key-here" > .env
+
+# Option B: Set environment variable (must repeat each session)
+# On Windows: set ANTHROPIC_API_KEY=your-key-here
+# On Mac/Linux: export ANTHROPIC_API_KEY=your-key-here
 
 # Start the backend server
 python -m uvicorn src.main:app --reload --port 8000
@@ -151,7 +154,7 @@ Programmatic access with rate limiting and API key management.
 | Frontend | Next.js 14 | React-based web interface |
 | Backend | FastAPI | High-performance Python API |
 | Database | SQLite/PostgreSQL | Data persistence |
-| AI | Claude/OpenAI | Language model integration |
+| AI | Claude 4.5 Haiku (default) | Language model integration |
 | Real-time | WebSocket | Live updates |
 
 ## Running Tests
@@ -161,7 +164,7 @@ cd backend
 python -m pytest tests/ -v
 ```
 
-All 182 tests should pass.
+All 184 tests should pass.
 
 ## Getting Help
 
@@ -181,7 +184,7 @@ MIT License - see LICENSE file for details.
 ## Acknowledgments
 
 ### Research Foundation
-This work is inspired by the paper ["Enhancing LLM Planning Capabilities through Intrinsic Self-Critique"](https://arxiv.org/abs/2512.24103) (arXiv:2512.24103v1) by Google DeepMind. See our [Arxiv Paper Primer](docs/ARXIV_PAPER_PRIMER.md) for details.
+This work is inspired by the paper ["Enhancing LLM Planning Capabilities through Intrinsic Self-Critique"](https://arxiv.org/abs/2512.24103) (arXiv:2512.24103v1) by Google DeepMind. See our [Arxiv Paper Primer](docs/ARXIV_PAPER_PRIMER.md) for details, including a complete mapping of paper prompts (A.1-A.5, B.1) to their implementation in the codebase.
 
 ### Development Methodology
 This project was built using skills from the [Superpowers plugin](https://github.com/superpowers-ai/superpowers) for Claude Code:
