@@ -53,7 +53,7 @@ export default function DomainPage() {
     );
   }
 
-  const isComplete = elicitationState?.phase === 'complete';
+  const canGeneratePlan = elicitationState?.phase === 'complete' || !!domain.domain_pddl;
 
   return (
     <div className="flex flex-col h-full">
@@ -66,7 +66,7 @@ export default function DomainPage() {
               <p className="text-muted-foreground mt-1">{domain.description}</p>
             )}
           </div>
-          {isComplete && (
+          {canGeneratePlan && (
             <Link
               href={`/dashboard/domain/${domainId}/plan`}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
