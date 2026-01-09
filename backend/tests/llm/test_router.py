@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, patch
+import os
 
 from src.llm.base import LLMRequest, LLMResponse, LLMProvider
 from src.llm.router import LLMRouter
@@ -49,9 +50,12 @@ async def test_router_routes_to_openai(mock_adapters):
 
 
 async def test_router_missing_api_key():
-    router = LLMRouter(api_keys={})
+    # Patch environment variables to ensure no API keys are found
+    with patch.dict("os.environ", {}, clear=True), \
+         patch("src.llm.router.os.getenv", return_value=None):
+        router = LLMRouter(api_keys={})
 
-    request = LLMRequest(prompt="Test", provider=LLMProvider.CLAUDE)
+        request = LLMRequest(prompt="Test", provider=LLMProvider.CLAUDE)
 
-    with pytest.raises(ValueError, match="No API key configured"):
-        await router.complete(request)
+        with pytest.raises(ValueError, match="No API key configured"):
+            await router.complete(request)

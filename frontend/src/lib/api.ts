@@ -1,4 +1,4 @@
-import type { Domain, ChatSession, PlanningSession, User } from '@/types';
+import type { Domain, ChatSession, ChatMessage, PlanningSession, User, ElicitationState } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -74,12 +74,35 @@ const clearSessionId = (domainId: string): void => {
   }
 };
 
+interface BackendMessageInfo {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+interface BackendElicitationState {
+  phase: string;
+  domain_name: string | null;
+  domain_description: string | null;
+  objects: string[];
+  predicates: string[];
+  actions: Array<{ name: string; params?: string[]; preconditions?: string[]; effects?: string[] }>;
+  initial_state: string[];
+  goal_state: string[];
+  messages: BackendMessageInfo[];
+  created_at: string;
+  updated_at: string;
+}
+
 interface BackendSessionInfo {
   session_id: string;
   phase: string;
   domain_name: string | null;
+  domain_id: string | null;
   completion_percentage: number;
   is_complete: boolean;
+  messages: BackendMessageInfo[];
+  elicitation_state: BackendElicitationState | null;
 }
 
 interface BackendChatResponse {
@@ -88,16 +111,51 @@ interface BackendChatResponse {
   phase: string;
   completion_percentage: number;
   is_complete: boolean;
+  domain_pddl: string | null;
+  problem_pddl: string | null;
+}
+
+function convertMessages(messages: BackendMessageInfo[]): ChatMessage[] {
+  return messages.map((m, index) => ({
+    id: `msg-${index}-${m.timestamp}`,
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+    timestamp: m.timestamp,
+  }));
+}
+
+function convertElicitationState(backend: BackendElicitationState | null, fallbackPhase: string): ElicitationState {
+  if (backend) {
+    return {
+      phase: backend.phase as ElicitationState['phase'],
+      domain_name: backend.domain_name,
+      objects: backend.objects || [],
+      predicates: backend.predicates || [],
+      actions: (backend.actions || []).map(a => typeof a === 'string' ? a : a.name),
+      initial_state: backend.initial_state || [],
+      goal_state: backend.goal_state || [],
+    };
+  }
+  return {
+    phase: fallbackPhase as ElicitationState['phase'],
+    domain_name: null,
+    objects: [],
+    predicates: [],
+    actions: [],
+    initial_state: [],
+    goal_state: [],
+  };
 }
 
 export const chatAPI = {
   getSession: async (domainId: string): Promise<ChatSession> => {
     let sessionId = getSessionId(domainId);
 
-    // If no session exists, create one
+    // If no session exists, create one linked to the domain
     if (!sessionId) {
       const newSession = await fetchAPI<BackendSessionInfo>('/chat/start', {
         method: 'POST',
+        body: JSON.stringify({ domain_id: domainId }),
       });
       sessionId = newSession.session_id;
       setSessionId(domainId, sessionId);
@@ -105,13 +163,9 @@ export const chatAPI = {
       return {
         id: sessionId,
         domain_id: domainId,
-        messages: [],
-        elicitation_state: {
-          phase: newSession.phase,
-          domain_name: newSession.domain_name,
-          completion_percentage: newSession.completion_percentage,
-          is_complete: newSession.is_complete,
-        },
+        messages: convertMessages(newSession.messages),
+        elicitation_state: convertElicitationState(newSession.elicitation_state, newSession.phase),
+        created_at: new Date().toISOString(),
       };
     }
 
@@ -121,13 +175,9 @@ export const chatAPI = {
       return {
         id: session.session_id,
         domain_id: domainId,
-        messages: [], // Backend doesn't persist messages currently
-        elicitation_state: {
-          phase: session.phase,
-          domain_name: session.domain_name,
-          completion_percentage: session.completion_percentage,
-          is_complete: session.is_complete,
-        },
+        messages: convertMessages(session.messages),
+        elicitation_state: convertElicitationState(session.elicitation_state, session.phase),
+        created_at: new Date().toISOString(),
       };
     } catch {
       // Session expired/invalid, create new one
@@ -136,7 +186,7 @@ export const chatAPI = {
     }
   },
 
-  sendMessage: async (domainId: string, message: string): Promise<{ response: string; state: ChatSession['elicitation_state'] }> => {
+  sendMessage: async (domainId: string, message: string): Promise<{ response: string; state: ElicitationState }> => {
     let sessionId = getSessionId(domainId);
 
     // Create session if needed
@@ -153,8 +203,13 @@ export const chatAPI = {
     return {
       response: response.message,
       state: {
-        phase: response.phase,
+        phase: response.phase as ElicitationState['phase'],
         domain_name: null,
+        objects: [],
+        predicates: [],
+        actions: [],
+        initial_state: [],
+        goal_state: [],
         completion_percentage: response.completion_percentage,
         is_complete: response.is_complete,
       },
@@ -165,6 +220,18 @@ export const chatAPI = {
     // Clear old session and create new one
     clearSessionId(domainId);
     return chatAPI.getSession(domainId);
+  },
+
+  generatePddl: async (domainId: string): Promise<{ domain_pddl: string; problem_pddl: string; saved_to_domain: boolean }> => {
+    const sessionId = getSessionId(domainId);
+    if (!sessionId) {
+      throw new Error('No active session for this domain');
+    }
+
+    return fetchAPI<{ domain_pddl: string; problem_pddl: string; saved_to_domain: boolean }>(
+      `/chat/session/${sessionId}/generate-pddl`,
+      { method: 'POST' }
+    );
   },
 };
 
@@ -181,46 +248,11 @@ export const planningAPI = {
       body: JSON.stringify({ domain_id: domainId }),
     }),
 
-  generate: (sessionId: string) =>
-    fetchAPI<PlanningSession>(`/planning/sessions/${sessionId}/generate`, {
-      method: 'POST',
-    }),
-
-  getIterations: (sessionId: string) =>
-    fetchAPI<{ iterations: unknown[] }>(`/planning/sessions/${sessionId}/iterations`),
+  delete: (id: string) =>
+    fetchAPI<void>(`/planning/sessions/${id}`, { method: 'DELETE' }),
 };
 
-// WebSocket connection for streaming
-export function createPlanningWebSocket(
-  sessionId: string,
-  onMessage: (event: { type: string; data: Record<string, unknown> }) => void,
-  onError?: (error: Event) => void,
-  onClose?: () => void
-): WebSocket {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(
-    `${protocol}//${window.location.host}/api/ws/planning/${sessionId}`
-  );
-
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      onMessage(data);
-    } catch {
-      console.error('Failed to parse WebSocket message:', event.data);
-    }
-  };
-
-  ws.onerror = (event) => {
-    console.error('WebSocket error:', event);
-    onError?.(event);
-  };
-
-  ws.onclose = () => {
-    onClose?.();
-  };
-
-  return ws;
-}
-
-export { APIError };
+// User API
+export const userAPI = {
+  me: () => fetchAPI<User>('/users/me'),
+};

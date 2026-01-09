@@ -42,6 +42,8 @@ export interface ElicitationState {
   actions: string[];
   initial_state: string[];
   goal_state: string[];
+  completion_percentage?: number;
+  is_complete?: boolean;
 }
 
 export type ElicitationPhase =

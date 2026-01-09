@@ -5,7 +5,7 @@ from src.llm.base import LLMRequest, LLMResponse
 
 
 class ClaudeAdapter:
-    default_model = "claude-sonnet-4-20250514"
+    default_model = "claude-haiku-4-5-20250514"
 
     def __init__(self, api_key: str):
         self.client = AsyncAnthropic(api_key=api_key)
