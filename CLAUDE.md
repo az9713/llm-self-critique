@@ -134,15 +134,19 @@ Planning sessions stream progress via WebSocket:
 
 ## Environment Variables
 
+Create a `.env` file in the `backend/` directory (copy from `.env.example`):
+
 ```bash
-# Required for LLM features
+# Required for LLM features (at least one)
 ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
+# OPENAI_API_KEY=sk-...
 
 # Optional
-DATABASE_URL=sqlite+aiosqlite:///./app.db
-LOG_LEVEL=INFO
+# DATABASE_URL=sqlite+aiosqlite:///./app.db
+# LOG_LEVEL=INFO
 ```
+
+The backend automatically loads `.env` on startup using python-dotenv.
 
 ## Important Notes
 

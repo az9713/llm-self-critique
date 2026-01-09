@@ -1,6 +1,6 @@
 import type { Domain, ChatSession, PlanningSession, User } from '@/types';
 
-const API_BASE = '/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 class APIError extends Error {
   constructor(
@@ -55,22 +55,117 @@ export const domainAPI = {
     fetchAPI<void>(`/domains/${id}`, { method: 'DELETE' }),
 };
 
-// Chat API
+// Chat API - manages session-based elicitation
+// Maps domain IDs to session IDs in localStorage
+const getSessionId = (domainId: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(`chat_session_${domainId}`);
+};
+
+const setSessionId = (domainId: string, sessionId: string): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`chat_session_${domainId}`, sessionId);
+  }
+};
+
+const clearSessionId = (domainId: string): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(`chat_session_${domainId}`);
+  }
+};
+
+interface BackendSessionInfo {
+  session_id: string;
+  phase: string;
+  domain_name: string | null;
+  completion_percentage: number;
+  is_complete: boolean;
+}
+
+interface BackendChatResponse {
+  session_id: string;
+  message: string;
+  phase: string;
+  completion_percentage: number;
+  is_complete: boolean;
+}
+
 export const chatAPI = {
-  getSession: (domainId: string) =>
-    fetchAPI<ChatSession>(`/chat/${domainId}`),
+  getSession: async (domainId: string): Promise<ChatSession> => {
+    let sessionId = getSessionId(domainId);
 
-  sendMessage: (domainId: string, message: string) =>
-    fetchAPI<{ response: string; state: ChatSession['elicitation_state'] }>(
-      `/chat/${domainId}/message`,
-      {
+    // If no session exists, create one
+    if (!sessionId) {
+      const newSession = await fetchAPI<BackendSessionInfo>('/chat/start', {
         method: 'POST',
-        body: JSON.stringify({ message }),
-      }
-    ),
+      });
+      sessionId = newSession.session_id;
+      setSessionId(domainId, sessionId);
 
-  reset: (domainId: string) =>
-    fetchAPI<ChatSession>(`/chat/${domainId}/reset`, { method: 'POST' }),
+      return {
+        id: sessionId,
+        domain_id: domainId,
+        messages: [],
+        elicitation_state: {
+          phase: newSession.phase,
+          domain_name: newSession.domain_name,
+          completion_percentage: newSession.completion_percentage,
+          is_complete: newSession.is_complete,
+        },
+      };
+    }
+
+    // Try to get existing session
+    try {
+      const session = await fetchAPI<BackendSessionInfo>(`/chat/session/${sessionId}`);
+      return {
+        id: session.session_id,
+        domain_id: domainId,
+        messages: [], // Backend doesn't persist messages currently
+        elicitation_state: {
+          phase: session.phase,
+          domain_name: session.domain_name,
+          completion_percentage: session.completion_percentage,
+          is_complete: session.is_complete,
+        },
+      };
+    } catch {
+      // Session expired/invalid, create new one
+      clearSessionId(domainId);
+      return chatAPI.getSession(domainId);
+    }
+  },
+
+  sendMessage: async (domainId: string, message: string): Promise<{ response: string; state: ChatSession['elicitation_state'] }> => {
+    let sessionId = getSessionId(domainId);
+
+    // Create session if needed
+    if (!sessionId) {
+      const session = await chatAPI.getSession(domainId);
+      sessionId = session.id;
+    }
+
+    const response = await fetchAPI<BackendChatResponse>('/chat/message', {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId, message }),
+    });
+
+    return {
+      response: response.message,
+      state: {
+        phase: response.phase,
+        domain_name: null,
+        completion_percentage: response.completion_percentage,
+        is_complete: response.is_complete,
+      },
+    };
+  },
+
+  reset: async (domainId: string): Promise<ChatSession> => {
+    // Clear old session and create new one
+    clearSessionId(domainId);
+    return chatAPI.getSession(domainId);
+  },
 };
 
 // Planning API

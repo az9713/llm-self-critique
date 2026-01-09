@@ -70,17 +70,15 @@ async def send_message(request: ChatRequest):
 
     state = _sessions[request.session_id]
 
-    # For testing without real LLM, return a mock response
-    # In production, this would use a real LLM router
+    # Try to use real LLM, fall back to mock if not configured
     try:
-        # Try to use real LLM if configured
-        router_instance = LLMRouter(api_keys={})  # Would get from config
+        router_instance = LLMRouter()  # Loads API keys from environment
         handler = ElicitationChatHandler(router_instance, LLMProvider.CLAUDE)
         response_message, state = await handler.handle_message(request.message, state)
-    except ValueError:
-        # No LLM configured, use simple mock response
+    except (ValueError, Exception) as e:
+        # No LLM configured or error, use simple mock response
         state.add_message("user", request.message)
-        response_message = f"I received your message about: {request.message[:50]}... Let me help you define your planning domain."
+        response_message = f"I received your message about: {request.message[:50]}... Let me help you define your planning domain. (Note: Set ANTHROPIC_API_KEY in .env for AI responses)"
         state.add_message("assistant", response_message)
 
     _sessions[request.session_id] = state
