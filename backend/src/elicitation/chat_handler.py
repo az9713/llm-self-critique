@@ -125,22 +125,47 @@ Phase-specific guidance:
         pattern = r'\[EXTRACTED\]\s*type:\s*(\w+)\s*data:\s*(.+?)\s*\[/EXTRACTED\]'
         matches = re.findall(pattern, response, re.DOTALL)
 
+        def flatten_to_list(data) -> list:
+            """Flatten nested objects/lists into a single list of items."""
+            if isinstance(data, list):
+                return data
+            elif isinstance(data, dict):
+                # Flatten all values from nested dict
+                result = []
+                for value in data.values():
+                    if isinstance(value, list):
+                        result.extend(value)
+                    elif isinstance(value, str):
+                        result.append(value)
+                return result
+            return []
+
         for data_type, data_str in matches:
             try:
                 data = json.loads(data_str.strip())
 
                 if data_type == "domain_name" and isinstance(data, str):
                     state.domain_name = data
-                elif data_type == "objects" and isinstance(data, list):
-                    state.objects.extend(data)
-                elif data_type == "predicates" and isinstance(data, list):
-                    state.predicates.extend(data)
-                elif data_type == "actions" and isinstance(data, list):
-                    state.actions.extend(data)
-                elif data_type == "initial_state" and isinstance(data, list):
-                    state.initial_state.extend(data)
-                elif data_type == "goal_state" and isinstance(data, list):
-                    state.goal_state.extend(data)
+                elif data_type == "objects":
+                    items = flatten_to_list(data)
+                    state.objects.extend(items)
+                elif data_type == "predicates":
+                    items = flatten_to_list(data)
+                    state.predicates.extend(items)
+                elif data_type == "actions":
+                    items = flatten_to_list(data)
+                    # Convert string actions to dict format if needed
+                    for item in items:
+                        if isinstance(item, str):
+                            state.actions.append({"name": item, "params": [], "preconditions": [], "effects": []})
+                        elif isinstance(item, dict):
+                            state.actions.append(item)
+                elif data_type == "initial_state":
+                    items = flatten_to_list(data)
+                    state.initial_state.extend(items)
+                elif data_type == "goal_state":
+                    items = flatten_to_list(data)
+                    state.goal_state.extend(items)
             except json.JSONDecodeError:
                 # If JSON parsing fails, try to extract as simple value
                 data_str = data_str.strip().strip('"').strip("'")
