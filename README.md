@@ -33,6 +33,7 @@ Imagine you're planning a kitchen renovation:
 | [Developer Guide](docs/DEVELOPER_GUIDE.md) | Technical documentation for developers |
 | [API Reference](docs/API_REFERENCE.md) | Complete API documentation |
 | [Architecture Overview](docs/ARCHITECTURE.md) | System design and components |
+| [PDDL Tutorial](docs/PDDL_TUTORIAL.md) | Learn Planning Domain Definition Language |
 | [Paper Primer](docs/ARXIV_PAPER_PRIMER.md) | Research foundation and prompt implementation mapping |
 
 ## System Requirements
