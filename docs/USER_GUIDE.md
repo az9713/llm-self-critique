@@ -261,6 +261,15 @@ Shows which phase of elicitation you're in:
 5. Effects
 6. Review
 
+### Session Persistence
+
+Your chat sessions are automatically linked to domains:
+
+- **Conversations are saved**: Navigate away and come back - your chat history remains
+- **Domain linking**: When you create a domain and start chatting, the session is linked to that domain
+- **PDDL auto-generation**: When elicitation completes, PDDL is automatically generated and saved to the domain
+- **Manual regeneration**: You can regenerate PDDL at any time using the "Generate PDDL" button
+
 ### Tips for Better Conversations
 
 1. **Be Specific**: Instead of "things", say "documents, servers, databases"

@@ -203,7 +203,7 @@ export ANTHROPIC_API_KEY=sk-ant-xxx
 cd backend
 python -m pytest tests/ -v
 
-# Expected: 182 tests passed
+# Expected: 184 tests passed
 
 # Start backend
 python -m uvicorn src.main:app --reload --port 8000
@@ -583,7 +583,7 @@ class ClaudeAdapter(LLMAdapter):
         temperature: float = 0.7,
     ) -> str:
         response = await self.client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-haiku-4-5-20250514",  # Default model
             max_tokens=max_tokens,
             temperature=temperature,
             messages=[{"role": m.role, "content": m.content} for m in messages],

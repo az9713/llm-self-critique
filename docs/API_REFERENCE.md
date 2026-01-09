@@ -147,19 +147,22 @@ POST /api/v1/domains
 ```json
 {
   "name": "Kitchen Renovation",
-  "description": "Planning domain for kitchen renovation project"
+  "description": "Planning domain for kitchen renovation project",
+  "workspace_id": "00000000-0000-0000-0000-000000000001"
 }
 ```
 
-**Response:** `200 OK`
+**Response:** `201 Created`
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
+  "workspace_id": "00000000-0000-0000-0000-000000000001",
   "name": "Kitchen Renovation",
   "description": "Planning domain for kitchen renovation project",
-  "pddl_domain": null,
-  "pddl_problem": null,
-  "status": "draft",
+  "domain_pddl": null,
+  "problem_pddl": null,
+  "is_public": false,
+  "is_template": false,
   "created_at": "2026-01-06T10:30:00Z",
   "updated_at": "2026-01-06T10:30:00Z"
 }
@@ -223,11 +226,13 @@ GET /api/v1/domains/{domain_id}
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
+  "workspace_id": "00000000-0000-0000-0000-000000000001",
   "name": "Kitchen Renovation",
   "description": "Planning domain for kitchen renovation project",
-  "pddl_domain": "(define (domain kitchen) ...)",
-  "pddl_problem": "(define (problem kitchen-reno) ...)",
-  "status": "complete",
+  "domain_pddl": "(define (domain kitchen) ...)",
+  "problem_pddl": "(define (problem kitchen-reno) ...)",
+  "is_public": false,
+  "is_template": false,
   "created_at": "2026-01-06T10:30:00Z",
   "updated_at": "2026-01-06T11:45:00Z"
 }
@@ -382,80 +387,14 @@ GET /api/v1/planning/sessions
 
 ## Chat API
 
-Elicitation chat for domain definition.
+Elicitation chat for domain definition. Chat sessions guide users through defining their planning domain and automatically generate PDDL when complete.
 
-### Send Message
+### Start Session
 
-Send a chat message and receive AI response.
-
-```
-POST /api/v1/chat/sessions/{session_id}/messages
-```
-
-**Request Body:**
-```json
-{
-  "content": "I want to plan a software release process"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "message_id": "770e8400-e29b-41d4-a716-446655440002",
-  "role": "assistant",
-  "content": "I can help you plan a software release process. What are the main activities involved in your release workflow?",
-  "timestamp": "2026-01-06T10:30:00Z",
-  "elicitation_state": {
-    "phase": "gathering_actions",
-    "completeness": 0.25,
-    "missing_elements": ["actions", "preconditions", "effects"]
-  }
-}
-```
-
----
-
-### Get Chat History
-
-Get all messages in a chat session.
+Start a new elicitation chat session, optionally linked to a domain.
 
 ```
-GET /api/v1/chat/sessions/{session_id}/messages
-```
-
-**Response:** `200 OK`
-```json
-{
-  "messages": [
-    {
-      "message_id": "...",
-      "role": "user",
-      "content": "I want to plan a software release",
-      "timestamp": "2026-01-06T10:29:00Z"
-    },
-    {
-      "message_id": "...",
-      "role": "assistant",
-      "content": "I can help with that...",
-      "timestamp": "2026-01-06T10:29:05Z"
-    }
-  ],
-  "elicitation_state": {
-    "phase": "gathering_actions",
-    "completeness": 0.25
-  }
-}
-```
-
----
-
-### Create Chat Session
-
-Create a new chat session for a domain.
-
-```
-POST /api/v1/chat/sessions
+POST /api/v1/chat/start
 ```
 
 **Request Body:**
@@ -464,6 +403,152 @@ POST /api/v1/chat/sessions
   "domain_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `domain_id` | string | No | Domain to link this session to. If provided, generated PDDL will be saved to this domain. |
+
+**Response:** `200 OK`
+```json
+{
+  "session_id": "660e8400-e29b-41d4-a716-446655440001",
+  "phase": "intro",
+  "domain_name": null,
+  "domain_id": "550e8400-e29b-41d4-a716-446655440000",
+  "completion_percentage": 0.0,
+  "is_complete": false,
+  "messages": [],
+  "elicitation_state": {
+    "phase": "intro",
+    "domain_name": null,
+    "objects": [],
+    "predicates": [],
+    "actions": [],
+    "initial_state": [],
+    "goal_state": []
+  }
+}
+```
+
+---
+
+### Send Message
+
+Send a message in an elicitation session and receive AI response.
+
+```
+POST /api/v1/chat/message
+```
+
+**Request Body:**
+```json
+{
+  "session_id": "660e8400-e29b-41d4-a716-446655440001",
+  "message": "I want to plan a software release process"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "session_id": "660e8400-e29b-41d4-a716-446655440001",
+  "message": "I can help you plan a software release process. What are the main activities involved in your release workflow?",
+  "phase": "objects",
+  "completion_percentage": 15.0,
+  "is_complete": false,
+  "domain_pddl": null,
+  "problem_pddl": null
+}
+```
+
+**Note:** When the elicitation phase reaches "complete", `domain_pddl` and `problem_pddl` will contain the generated PDDL, which is also automatically saved to the linked domain.
+
+---
+
+### Get Session
+
+Get session information including message history.
+
+```
+GET /api/v1/chat/session/{session_id}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "session_id": "660e8400-e29b-41d4-a716-446655440001",
+  "phase": "objects",
+  "domain_name": "Software Release",
+  "domain_id": "550e8400-e29b-41d4-a716-446655440000",
+  "completion_percentage": 25.0,
+  "is_complete": false,
+  "messages": [
+    {
+      "role": "user",
+      "content": "I want to plan a software release process",
+      "timestamp": "2026-01-06T10:29:00Z"
+    },
+    {
+      "role": "assistant",
+      "content": "I can help with that...",
+      "timestamp": "2026-01-06T10:29:05Z"
+    }
+  ],
+  "elicitation_state": {
+    "phase": "objects",
+    "domain_name": "Software Release",
+    "objects": ["code", "tests", "deployment"],
+    "predicates": [],
+    "actions": [],
+    "initial_state": [],
+    "goal_state": []
+  }
+}
+```
+
+**Note:** Messages persist in the session and are returned when retrieving the session, enabling chat history to survive page navigation.
+
+---
+
+### Delete Session
+
+Delete an elicitation session.
+
+```
+DELETE /api/v1/chat/session/{session_id}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "status": "deleted"
+}
+```
+
+---
+
+### Generate PDDL
+
+Manually trigger PDDL generation for a session. Useful when you want to generate PDDL before the elicitation is complete.
+
+```
+POST /api/v1/chat/session/{session_id}/generate-pddl
+```
+
+**Response:** `200 OK`
+```json
+{
+  "domain_pddl": "(define (domain software-release) ...)",
+  "problem_pddl": "(define (problem release-v1) ...)",
+  "saved_to_domain": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `domain_pddl` | string | Generated PDDL domain definition |
+| `problem_pddl` | string | Generated PDDL problem definition |
+| `saved_to_domain` | boolean | Whether PDDL was saved to the linked domain |
 
 ---
 

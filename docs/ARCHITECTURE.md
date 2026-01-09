@@ -360,25 +360,33 @@ src/app/
 
 ### Chat Elicitation Flow
 
+Chat sessions are linked to domains. When elicitation completes, PDDL is automatically generated and saved to the domain.
+
 ```
 ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
 │  User   │◀──▶│  Chat   │◀──▶│  Chat   │◀──▶│  State  │◀──▶│   LLM   │
 │         │    │   UI    │    │ Handler │    │ Machine │    │  API    │
 └─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
      │              │              │              │              │
-     │  "I want to  │  WS:         │  Process     │  Update      │
-     │  plan..."    │  message     │  message     │  state       │
+     │  Start       │  POST        │  Create      │              │
+     │  session     │  /start      │  session     │              │
+     │  (domain_id) │  {domain_id} │  linked to   │              │
+     │─────────────▶│─────────────▶│  domain      │              │
+     │              │              │              │              │
+     │  "I want to  │  POST        │  Process     │  Update      │
+     │  plan..."    │  /message    │  message     │  state       │
      │─────────────▶│─────────────▶│─────────────▶│─────────────▶│
      │              │              │              │              │
      │              │              │  Generate    │              │
      │              │              │  response    │──────────────▶
      │              │              │◀─────────────│◀──────────────
      │              │              │              │              │
-     │              │  WS:         │              │              │
-     │              │  response    │              │              │
-     │◀─────────────│◀─────────────│              │              │
+     │              │  JSON        │              │              │
+     │              │  response +  │              │              │
+     │◀─────────────│  messages    │              │              │
      │              │              │              │              │
      │  (Conversation continues until domain is complete)        │
+     │  (Messages persist - navigate away and back)              │
      │              │              │              │              │
      │              │              │  Check       │              │
      │              │              │  completeness│              │
@@ -388,6 +396,10 @@ src/app/
      │              │              │  Generate    │              │
      │              │              │  PDDL        │──────────────▶
      │              │              │◀─────────────│◀──────────────
+     │              │              │              │              │
+     │              │              │  Save PDDL   │              │
+     │              │              │  to Domain   │              │
+     │              │              │  (DB)        │              │
 ```
 
 ---
@@ -502,13 +514,15 @@ def calculate_weighted_vote(feedback_item, critic_votes):
 │      User       │       │     Domain      │
 ├─────────────────┤       ├─────────────────┤
 │ id (PK)         │───┐   │ id (PK)         │
-│ email           │   │   │ user_id (FK)    │◀──┐
+│ email           │   │   │ workspace_id(FK)│◀──┐
 │ password_hash   │   └──▶│ name            │   │
 │ created_at      │       │ description     │   │
-│ preferences     │       │ pddl_domain     │   │
-└─────────────────┘       │ pddl_problem    │   │
-                          │ status          │   │
+│ preferences     │       │ domain_pddl     │   │
+└─────────────────┘       │ problem_pddl    │   │
+                          │ is_public       │   │
+                          │ is_template     │   │
                           │ created_at      │   │
+                          │ updated_at      │   │
                           └────────┬────────┘   │
                                    │            │
                                    │            │
@@ -559,12 +573,14 @@ class User(Base):
 
 class Domain(Base):
     id: UUID (PK)
-    user_id: UUID (FK → User)
+    workspace_id: UUID (FK → Workspace)
     name: String
     description: Text
-    pddl_domain: Text (nullable)
-    pddl_problem: Text (nullable)
-    status: Enum (draft, complete, has_plan)
+    domain_pddl: Text (nullable)
+    problem_pddl: Text (nullable)
+    is_public: Boolean
+    is_template: Boolean
+    updated_at: DateTime
 
 class PlanningSession(Base):
     id: UUID (PK)

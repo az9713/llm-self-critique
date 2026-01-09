@@ -12,6 +12,7 @@ A comprehensive guide to the research paper (arXiv:2512.24103v1) that forms the 
 6. [Ablation Studies](#ablation-studies)
 7. [Implications for This Platform](#implications-for-this-platform)
 8. [Glossary of Terms](#glossary-of-terms)
+9. [Appendix: Prompt Implementation Mapping](#appendix-prompt-implementation-mapping)
 
 ---
 
@@ -375,6 +376,330 @@ The paper reports final metrics. We show:
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Appendix: Prompt Implementation Mapping
+
+This section maps the prompts from the DeepMind paper (Appendix A and B) to their implementation in this codebase and shows which UI workflow step triggers each prompt.
+
+### Paper Prompts Overview
+
+| Prompt | Paper Section | Purpose | Implementation Status |
+|--------|---------------|---------|----------------------|
+| **A.1** | Appendix A.1 | Self-Critique (Few-Shot) | Partial - Zero-shot variant used |
+| **A.2** | Appendix A.2 | Self-Critique (Zero-Shot) | ✅ Implemented |
+| **A.3** | Appendix A.3 | Plan Generation (Few-Shot) | ✅ Implemented |
+| **A.4** | Appendix A.4 | Plan Revision with Feedback | ✅ Implemented |
+| **A.5** | Appendix A.5 | Many-Shot Self-Critique | Not implemented |
+| **B.1** | Appendix B.1 | Domain-Specific Exemplars (Blocksworld) | Not implemented |
+
+---
+
+### Prompt A.1 / A.2: Self-Critique Prompt
+
+**Paper Description:** Verifies a plan step-by-step by checking preconditions and applying effects.
+
+**Code Location:** `backend/src/critique/orchestrator.py:31-45`
+
+```python
+CRITIQUE_PROMPT = """Given the domain definition:
+{domain_pddl}
+
+So, for each action:
+1. Take the action and its preconditions from the domain definition.
+2. Verify whether the preconditions are met for the action.
+3. Apply the action and provide the resulting state.
+
+The problem to solve:
+{problem_pddl}
+
+The suggested solution:
+{plan}
+
+Please carefully evaluate the plan. Verify each step as described above.
+Do not stop until each action is verified; please *do not* omit steps.
+Conclude with the assessment literally either with 'the plan is correct',
+'the plan is wrong', or 'goal not reached'."""
+```
+
+**UI Workflow Trigger:**
+1. User clicks **"Generate Plan"** in the Plan view
+2. System generates initial plan using A.3
+3. **→ A.2 is invoked 5 times in parallel** (self-consistency voting)
+4. Results aggregated via majority vote
+
+**Method Call Chain:**
+```
+UI: Generate Plan button
+→ POST /api/v1/planning/sessions/{id}/plan
+→ SelfCritiqueOrchestrator.run()
+→ SelfCritiqueOrchestrator._run_critiques()  ← A.2 prompt used here
+→ CritiqueParser.parse() → VoteAggregator.aggregate()
+```
+
+**Note:** A.1 (few-shot) would include exemplar critique traces before the plan. Our implementation uses A.2 (zero-shot) for simplicity. Few-shot exemplars could be added via the `PromptExemplar` database model.
+
+---
+
+### Prompt A.3: Plan Generation Prompt
+
+**Paper Description:** Generates a plan given domain and problem PDDL.
+
+**Code Location:** `backend/src/critique/orchestrator.py:21-29`
+
+```python
+PLAN_PROMPT = """Given the domain definition:
+{domain_pddl}
+
+The problem to solve:
+{problem_pddl}
+
+{critique_history}
+
+Generate a plan to solve this problem. Output only the numbered list of actions."""
+```
+
+**UI Workflow Trigger:**
+1. User clicks **"Generate Plan"** in the Plan view
+2. **→ A.3 is invoked** to generate the initial plan
+3. Plan is then verified using A.2
+
+**Method Call Chain:**
+```
+UI: Generate Plan button
+→ POST /api/v1/planning/sessions/{id}/plan
+→ SelfCritiqueOrchestrator.run()
+→ SelfCritiqueOrchestrator._generate_plan()  ← A.3 prompt used here
+```
+
+---
+
+### Prompt A.4: Plan Revision Prompt
+
+**Paper Description:** Revises a plan based on critique feedback.
+
+**Code Location:** `backend/src/critique/orchestrator.py:86` (injected via `{critique_history}`)
+
+The revision is implemented by appending the critique feedback to the plan generation prompt:
+
+```python
+critique_history = f"\nPrevious attempt failed with: {vote_result.best_critique.error_reason}\nPlease fix this issue."
+```
+
+This transforms A.3 into A.4 on subsequent iterations.
+
+**UI Workflow Trigger:**
+1. Initial plan generated (A.3)
+2. Plan verified (A.2) → verdict is "wrong" or "goal not reached"
+3. **→ A.4 is invoked** (A.3 + critique history)
+4. New plan verified (A.2)
+5. Loop repeats up to `max_iterations` (default: 5)
+
+**Method Call Chain:**
+```
+SelfCritiqueOrchestrator.run() loop:
+  iteration 1: _generate_plan() (A.3) → _run_critiques() (A.2)
+  if wrong:
+    iteration 2: _generate_plan() with critique_history (A.4) → _run_critiques() (A.2)
+    ...
+```
+
+---
+
+### Prompt A.5: Many-Shot Self-Critique
+
+**Paper Description:** Uses extensive examples (50-200) in the critique prompt.
+
+**Implementation Status:** Not implemented
+
+**How to Implement:** Use the `PromptExemplar` model to store many exemplars and inject them into A.2's prompt before the plan verification section.
+
+---
+
+### Prompt B.1: Domain-Specific Exemplars (Blocksworld)
+
+**Paper Description:** Benchmark-specific few-shot examples for Blocksworld domain.
+
+**Implementation Status:** Not implemented
+
+**How to Implement:** Store in `PromptExemplar` with `domain_type="blocksworld"` and inject when domain matches.
+
+---
+
+### Additional Platform-Specific Prompts
+
+These prompts extend beyond the paper to enable natural language interaction:
+
+#### Domain Elicitation Prompt
+
+**Purpose:** Guides users through defining a planning domain via conversation.
+
+**Code Location:** `backend/src/elicitation/chat_handler.py:10-38`
+
+```python
+SYSTEM_PROMPT = """You are a helpful AI assistant that guides users through
+defining a planning domain. Your goal is to collect enough information to
+generate a PDDL specification.
+
+Current conversation phase: {phase}
+Information collected so far:
+- Domain name: {domain_name}
+- Objects: {objects}
+- Predicates: {predicates}
+- Actions: {actions}
+...
+"""
+```
+
+**UI Workflow Trigger:**
+1. User creates a new domain
+2. User navigates to **"Define Domain"** tab
+3. User sends a chat message
+4. **→ Elicitation prompt is invoked**
+5. Assistant guides through phases: INTRO → OBJECTS → PREDICATES → ACTIONS → INITIAL → GOAL → COMPLETE
+
+**Method Call Chain:**
+```
+UI: Chat input in Define Domain tab
+→ POST /api/v1/chat/message
+→ ElicitationChatHandler.handle_message()  ← Elicitation prompt used here
+```
+
+---
+
+#### PDDL Domain Generation Prompt
+
+**Purpose:** Converts elicited natural language domain to formal PDDL syntax.
+
+**Code Location:** `backend/src/elicitation/pddl_generator.py:9-28`
+
+```python
+DOMAIN_PROMPT = """You are an expert in PDDL.
+Generate a valid PDDL domain definition based on the following information:
+
+Domain Name: {domain_name}
+Objects/Types: {objects}
+Predicates: {predicates}
+Actions: {actions}
+...
+Output ONLY valid PDDL code, no explanations."""
+```
+
+**UI Workflow Trigger:**
+1. Elicitation conversation reaches **COMPLETE** phase
+2. **→ PDDL Domain prompt is invoked**
+3. Generated PDDL is saved to domain
+
+**Method Call Chain:**
+```
+ElicitationPhase reaches COMPLETE
+→ PDDLGenerator.generate_domain()  ← PDDL Domain prompt used here
+→ Domain.domain_pddl = generated_pddl
+```
+
+---
+
+#### PDDL Problem Generation Prompt
+
+**Purpose:** Converts initial/goal states to formal PDDL problem syntax.
+
+**Code Location:** `backend/src/elicitation/pddl_generator.py:30-50`
+
+```python
+PROBLEM_PROMPT = """You are an expert in PDDL.
+Generate a valid PDDL problem definition based on the following:
+
+Domain Definition: {domain_pddl}
+Objects: {objects}
+Initial State: {initial_state}
+Goal State: {goal_state}
+...
+Output ONLY valid PDDL code, no explanations."""
+```
+
+**UI Workflow Trigger:**
+1. Elicitation conversation reaches **COMPLETE** phase
+2. PDDL Domain generated
+3. **→ PDDL Problem prompt is invoked**
+4. Generated PDDL problem is saved
+
+**Method Call Chain:**
+```
+PDDLGenerator.generate_full()
+→ generate_domain()  ← PDDL Domain prompt
+→ generate_problem()  ← PDDL Problem prompt
+→ Domain.problem_pddl = generated_problem
+```
+
+---
+
+### Complete UI-to-Prompt Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           USER INTERFACE FLOW                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. CREATE DOMAIN                                                            │
+│     └── User clicks "New Domain"                                             │
+│         └── No prompts invoked (database only)                               │
+│                                                                              │
+│  2. DEFINE DOMAIN (Chat Tab)                                                 │
+│     └── User sends chat messages                                             │
+│         └── 📝 ELICITATION PROMPT (chat_handler.py:10)                      │
+│             Guides user through: INTRO → OBJECTS → PREDICATES →              │
+│             ACTIONS → INITIAL → GOAL phases                                  │
+│                                                                              │
+│  3. COMPLETE ELICITATION                                                     │
+│     └── Chat reaches COMPLETE phase                                          │
+│         └── 📝 PDDL DOMAIN PROMPT (pddl_generator.py:9)                      │
+│         └── 📝 PDDL PROBLEM PROMPT (pddl_generator.py:30)                    │
+│             Auto-saves to Domain entity                                      │
+│                                                                              │
+│  4. VIEW PDDL (PDDL Tab)                                                     │
+│     └── User views generated PDDL                                            │
+│         └── No prompts invoked (read from database)                          │
+│                                                                              │
+│  5. GENERATE PLAN (Plan Tab)                                                 │
+│     └── User clicks "Generate Plan"                                          │
+│         │                                                                    │
+│         ├── ITERATION 1:                                                     │
+│         │   └── 📝 A.3: PLAN_PROMPT (orchestrator.py:21)                    │
+│         │       └── 📝 A.2: CRITIQUE_PROMPT × 5 (orchestrator.py:31)        │
+│         │           └── Majority vote: CORRECT? → Done!                      │
+│         │                             WRONG?   → Continue                    │
+│         │                                                                    │
+│         ├── ITERATION 2+ (if needed):                                        │
+│         │   └── 📝 A.4: PLAN_PROMPT + critique_history (orchestrator.py:86) │
+│         │       └── 📝 A.2: CRITIQUE_PROMPT × 5                             │
+│         │           └── Majority vote...                                     │
+│         │                                                                    │
+│         └── Max 5 iterations, then returns best plan                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Prompt Configuration Database Schema
+
+Prompts can be managed and versioned via the database:
+
+```
+PromptTemplate
+├── id, name, purpose (SELF_CRITIQUE, PLAN_GENERATION, ELICITATION, PDDL_GENERATION)
+│
+└── PromptVersion
+    ├── version, content (the prompt text with {placeholders})
+    ├── variables (list of placeholder names)
+    ├── is_default (which version to use)
+    │
+    └── PromptExemplar (for few-shot prompts like A.1, A.5, B.1)
+        ├── domain_type (e.g., "blocksworld", "logistics")
+        ├── exemplar_content (the example text)
+        └── order (sequence in prompt)
+```
+
+This allows adding few-shot exemplars (A.1, A.5, B.1) without code changes.
 
 ---
 

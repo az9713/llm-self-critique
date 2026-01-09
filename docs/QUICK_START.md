@@ -95,6 +95,24 @@ Think of it as a separate container for this project's packages. It prevents con
 
 ### Step 3: Configure Your API Key
 
+**Option A: Using a .env file (Recommended)**
+
+Create a file named `.env` in the `backend/` folder:
+
+```bash
+# backend/.env
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+This is the recommended approach because:
+- The key persists between terminal sessions
+- You don't need to set it every time you start the server
+- The `.env` file is already in `.gitignore` so it won't be committed
+
+**Option B: Using environment variables**
+
+If you prefer setting the key each time:
+
 **On Windows (Command Prompt):**
 ```cmd
 set ANTHROPIC_API_KEY=sk-ant-your-key-here
