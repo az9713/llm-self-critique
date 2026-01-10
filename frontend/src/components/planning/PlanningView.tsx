@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { IterationCard } from './IterationCard';
-import { createPlanningWebSocket, planningAPI } from '@/lib/api';
+import { createPlanningWebSocket } from '@/lib/api';
 import type { PlanningSession, Verdict } from '@/types';
 import { Loader2, Play, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
@@ -22,15 +22,26 @@ interface Iteration {
 interface PlanningViewProps {
   session: PlanningSession;
   domainId: string;
-  onSessionUpdate?: (session: PlanningSession) => void;
 }
 
 export function PlanningView({
   session,
   domainId,
-  onSessionUpdate,
-}: PlanningViewProps) {
-  const [iterations, setIterations] = useState<Iteration[]>([]);
+}: PlanningViewProps): JSX.Element {
+  // Initialize iterations from stored plan if session is already complete
+  const initialIterations: Iteration[] =
+    (session.status === 'complete' || session.status === 'failed') && session.current_plan
+      ? [{
+          number: session.iteration_count || 1,
+          plan: session.current_plan,
+          verdict: session.final_verdict,
+          confidence: 1.0,
+          errorReason: null,
+          critiqueResults: [],
+        }]
+      : [];
+
+  const [iterations, setIterations] = useState<Iteration[]>(initialIterations);
   const [currentIteration, setCurrentIteration] = useState<number>(0);
   const [status, setStatus] = useState<string>(session.status);
   const [isRunning, setIsRunning] = useState(false);
@@ -62,7 +73,7 @@ export function PlanningView({
         case 'plan_generated':
           setIterations((prev) =>
             prev.map((iter) =>
-              iter.number === currentIteration
+              iter.number === (event.data.iteration as number)
                 ? { ...iter, plan: event.data.plan as string }
                 : iter
             )
@@ -72,12 +83,16 @@ export function PlanningView({
         case 'critique_sample':
           setIterations((prev) =>
             prev.map((iter) =>
-              iter.number === currentIteration
+              iter.number === (event.data.iteration as number)
                 ? {
                     ...iter,
                     critiqueResults: [
                       ...iter.critiqueResults,
-                      event.data.result as Iteration['critiqueResults'][0],
+                      {
+                        verdict: event.data.verdict as Verdict,
+                        step_traces: [],
+                        error_reason: null,
+                      },
                     ],
                   }
                 : iter
@@ -88,12 +103,12 @@ export function PlanningView({
         case 'critique_complete':
           setIterations((prev) =>
             prev.map((iter) =>
-              iter.number === currentIteration
+              iter.number === (event.data.iteration as number)
                 ? {
                     ...iter,
-                    verdict: event.data.majority_verdict as Verdict,
+                    verdict: event.data.verdict as Verdict,
                     confidence: event.data.confidence as number,
-                    errorReason: event.data.best_error_reason as string | null,
+                    errorReason: null,
                   }
                 : iter
             )
@@ -111,7 +126,7 @@ export function PlanningView({
           break;
       }
     },
-    [currentIteration]
+    []
   );
 
   const startPlanning = async () => {
@@ -119,9 +134,10 @@ export function PlanningView({
     setIterations([]);
     setStatus('planning');
 
-    // Connect WebSocket
-    const websocket = createPlanningWebSocket(
+    // Connect WebSocket (async - fetches PDDL first, then opens connection)
+    const websocket = await createPlanningWebSocket(
       session.id,
+      domainId,
       handleWSMessage,
       () => {
         setIsRunning(false);
@@ -132,7 +148,13 @@ export function PlanningView({
       }
     );
 
-    setWs(websocket);
+    if (websocket) {
+      setWs(websocket);
+    } else {
+      // WebSocket creation failed (no PDDL available)
+      setIsRunning(false);
+      setStatus('failed');
+    }
   };
 
   // Cleanup WebSocket on unmount

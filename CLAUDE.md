@@ -85,7 +85,7 @@ The `src/llm/` module provides a unified interface for multiple LLM providers:
 - `LLMAdapter` base class defines the interface
 - `ClaudeAdapter` and `OpenAIAdapter` implement provider-specific logic
 - `LLMRouter` handles provider selection and fallback
-- Default model: `claude-haiku-4-5` (Claude 4.5 Haiku)
+- Default model: `claude-3-5-haiku-20241022` (Claude 3.5 Haiku)
 
 ### 3. Self-Critique Loop
 The critique system (`src/critique/`) implements:
@@ -96,7 +96,7 @@ The critique system (`src/critique/`) implements:
 
 ### 4. WebSocket Real-time Updates
 Planning sessions stream progress via WebSocket:
-- `ws://localhost:8000/ws/planning/{session_id}` for planning updates
+- `ws://localhost:8000/ws/plan/{session_id}` for planning updates
 - `ws://localhost:8000/ws/chat/{session_id}` for chat messages
 
 ## Common Development Tasks
@@ -132,6 +132,30 @@ Planning sessions stream progress via WebSocket:
 - Docstrings for public functions
 - Keep functions focused and small
 - Prefer composition over inheritance
+
+## Code Simplification
+
+This project uses the `code-simplifier:code-simplifier` Claude Code plugin to maintain code quality.
+
+### Running Code Simplifier
+```
+Use code-simplifier on recently modified files
+```
+
+### What It Does
+- Removes unused imports and dead code
+- Extracts repeated logic into helper functions
+- Replaces print statements with proper logging
+- Adds missing type annotations
+- Standardizes error handling patterns
+
+### When to Use
+- After completing a feature or bug fix
+- Before creating a pull request
+- During code review to identify cleanup opportunities
+
+### Documentation
+See `docs/CODE_SIMPLIFIER_CHANGELOG.md` for a history of refinements made by this tool.
 
 ## Environment Variables
 

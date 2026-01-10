@@ -944,12 +944,12 @@ Real-time communication via WebSocket.
 Connect to receive real-time planning updates.
 
 ```
-WebSocket: ws://localhost:8000/ws/planning/{session_id}
+WebSocket: ws://localhost:8000/ws/plan/{session_id}
 ```
 
 **Connection:**
 ```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/planning/session-id');
+const ws = new WebSocket('ws://localhost:8000/ws/plan/session-id');
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);

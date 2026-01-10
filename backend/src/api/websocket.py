@@ -1,17 +1,19 @@
-import json
 import asyncio
+import logging
 from uuid import UUID
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
 from src.database import async_session_maker
-from src.models import PlanningSession, PlanIteration
+from src.models import PlanningSession
 from src.models.planning import SessionStatus, Verdict
-from src.critique.orchestrator import SelfCritiqueOrchestrator
 from src.critique.parser import CritiqueParser
 from src.critique.voting import VoteAggregator
-from src.llm.base import LLMRequest, LLMResponse, LLMProvider
+from src.llm.base import LLMRequest, LLMProvider
 from src.llm.router import LLMRouter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -164,24 +166,32 @@ Please carefully evaluate the plan. Conclude with 'the plan is correct', 'the pl
         return result
 
 
+async def send_ws_error(websocket: WebSocket, message: str) -> None:
+    """Send an error message via WebSocket with consistent format."""
+    await websocket.send_json({"type": "error", "data": {"message": message}})
+
+
 @router.websocket("/ws/plan/{session_id}")
 async def plan_websocket(websocket: WebSocket, session_id: str):
     """WebSocket endpoint for streaming plan generation."""
     await websocket.accept()
+    logger.info("WebSocket accepted for session %s", session_id)
 
     try:
         # Wait for the start message with PDDL definitions
+        logger.debug("Waiting for start message...")
         data = await websocket.receive_json()
+        logger.debug("Received data: action=%s", data.get("action"))
 
         if data.get("action") != "start":
-            await websocket.send_json({"type": "error", "message": "Expected 'start' action"})
+            await send_ws_error(websocket, "Expected 'start' action")
             return
 
         domain_pddl = data.get("domain_pddl")
         problem_pddl = data.get("problem_pddl")
 
         if not domain_pddl or not problem_pddl:
-            await websocket.send_json({"type": "error", "message": "Missing PDDL definitions"})
+            await send_ws_error(websocket, "Missing PDDL definitions")
             return
 
         # Update session status
@@ -192,7 +202,7 @@ async def plan_websocket(websocket: WebSocket, session_id: str):
             session = result.scalar_one_or_none()
 
             if not session:
-                await websocket.send_json({"type": "error", "message": "Session not found"})
+                await send_ws_error(websocket, "Session not found")
                 return
 
             session.status = SessionStatus.PLANNING
@@ -201,9 +211,8 @@ async def plan_websocket(websocket: WebSocket, session_id: str):
             await db.commit()
 
         # Run streaming orchestrator
-        # In production, get API keys from config
         try:
-            llm_router = LLMRouter(api_keys={"claude": "mock-key"})
+            llm_router = LLMRouter()
             orchestrator = StreamingOrchestrator(
                 websocket=websocket,
                 llm_router=llm_router,
@@ -227,9 +236,14 @@ async def plan_websocket(websocket: WebSocket, session_id: str):
                 await db.commit()
 
         except ValueError as e:
-            await websocket.send_json({"type": "error", "message": str(e)})
+            logger.warning("ValueError during planning: %s", e)
+            await send_ws_error(websocket, str(e))
 
     except WebSocketDisconnect:
-        pass
+        logger.info("Client disconnected from session %s", session_id)
     except Exception as e:
-        await websocket.send_json({"type": "error", "message": str(e)})
+        logger.exception("Exception during planning for session %s", session_id)
+        try:
+            await send_ws_error(websocket, str(e))
+        except Exception:
+            pass  # Client already disconnected

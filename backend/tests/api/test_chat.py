@@ -2,15 +2,17 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from src.main import app
-from src.api.chat import _sessions
+from src.database import engine, Base
 
 
 @pytest.fixture(autouse=True)
-def clear_sessions():
-    """Clear sessions before each test."""
-    _sessions.clear()
+async def setup_database():
+    """Setup and teardown database for each test."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
-    _sessions.clear()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture

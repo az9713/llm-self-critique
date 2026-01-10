@@ -256,3 +256,69 @@ export const planningAPI = {
 export const userAPI = {
   me: () => fetchAPI<User>('/users/me'),
 };
+
+// WebSocket helpers
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+
+interface PlanningWSEvent {
+  type: string;
+  data: Record<string, unknown>;
+}
+
+export async function createPlanningWebSocket(
+  sessionId: string,
+  domainId: string,
+  onMessage: (event: PlanningWSEvent) => void,
+  onError?: (error: Event) => void,
+  onClose?: () => void
+): Promise<WebSocket | null> {
+  // Fetch PDDL data BEFORE opening WebSocket
+  let domainPddl: string;
+  let problemPddl: string;
+
+  try {
+    const domain = await domainAPI.get(domainId);
+    if (!domain.domain_pddl || !domain.problem_pddl) {
+      onError?.(new Event('No PDDL available for this domain. Complete domain definition first.'));
+      return null;
+    }
+    domainPddl = domain.domain_pddl;
+    problemPddl = domain.problem_pddl;
+  } catch (e) {
+    console.error('Failed to load PDDL:', e);
+    onError?.(new Event('Failed to load domain PDDL'));
+    return null;
+  }
+
+  // Now open WebSocket with data ready to send
+  const ws = new WebSocket(`${WS_BASE}/ws/plan/${sessionId}`);
+
+  ws.onopen = () => {
+    // Send start message immediately - data is already loaded
+    ws.send(JSON.stringify({
+      action: 'start',
+      domain_pddl: domainPddl,
+      problem_pddl: problemPddl,
+    }));
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data) as PlanningWSEvent;
+      onMessage(data);
+    } catch (e) {
+      console.error('Failed to parse WebSocket message:', e);
+    }
+  };
+
+  ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+    onError?.(error);
+  };
+
+  ws.onclose = () => {
+    onClose?.();
+  };
+
+  return ws;
+}

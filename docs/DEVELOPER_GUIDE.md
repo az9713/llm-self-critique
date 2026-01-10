@@ -16,6 +16,7 @@ Complete technical guide for developers working on the Self-Critique Planning Pl
 10. [Debugging Guide](#debugging-guide)
 11. [Deployment](#deployment)
 12. [Contributing](#contributing)
+13. [Code Simplification](#code-simplification-with-claude-code)
 
 ---
 
@@ -583,7 +584,7 @@ class ClaudeAdapter(LLMAdapter):
         temperature: float = 0.7,
     ) -> str:
         response = await self.client.messages.create(
-            model="claude-haiku-4-5",  # Default model
+            model="claude-3-5-haiku-20241022",  # Default model
             max_tokens=max_tokens,
             temperature=temperature,
             messages=[{"role": m.role, "content": m.content} for m in messages],
@@ -626,7 +627,7 @@ from src.websocket.manager import ConnectionManager
 router = APIRouter()
 manager = ConnectionManager()
 
-@router.websocket("/ws/planning/{session_id}")
+@router.websocket("/ws/plan/{session_id}")
 async def planning_websocket(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
     try:
@@ -743,7 +744,7 @@ export function useWebSocket(url: string) {
 ```tsx
 function PlanningView({ sessionId }: { sessionId: string }) {
     const { messages, isConnected, send } = useWebSocket(
-        `ws://localhost:8000/ws/planning/${sessionId}`
+        `ws://localhost:8000/ws/plan/${sessionId}`
     );
 
     return (
@@ -1228,6 +1229,64 @@ Examples:
 - [ ] No unnecessary changes
 - [ ] Documentation updated
 - [ ] No secrets committed
+- [ ] Code simplifier run (optional but recommended)
+
+### Code Simplification with Claude Code
+
+This project uses the `code-simplifier:code-simplifier` Claude Code plugin to maintain code quality and consistency.
+
+#### What is Code Simplifier?
+
+A Claude Code plugin that analyzes recently modified code and applies refinements to improve clarity, consistency, and maintainability while preserving all functionality.
+
+#### Running Code Simplifier
+
+In Claude Code, ask:
+```
+Use code-simplifier on recently modified files
+```
+
+Or target specific files:
+```
+Use code-simplifier on backend/src/api/chat.py
+```
+
+#### What It Does
+
+| Improvement | Example |
+|-------------|---------|
+| Remove unused imports | `from uuid import uuid4` removed if not used |
+| Extract helper functions | Repeated 10-line patterns → single reusable function |
+| Standardize logging | `print(..., stderr)` → `logger.warning(...)` |
+| Add type annotations | `def foo(x)` → `def foo(x: str) -> bool` |
+| Clean up props/interfaces | Remove unused component props |
+
+#### When to Run
+
+1. **After completing a feature**: Clean up any temporary code or debugging artifacts
+2. **Before creating a PR**: Ensure code quality before review
+3. **During refactoring**: Identify further simplification opportunities
+
+#### Example Refinements
+
+**Before (repeated pattern):**
+```python
+try:
+    session_uuid = UUID(session_id)
+    result = await db.execute(select(ChatSession).where(ChatSession.id == session_uuid))
+    session = result.scalar_one_or_none()
+except ValueError:
+    session = None
+```
+
+**After (extracted helper):**
+```python
+session = await get_chat_session_by_id(session_id, db)
+```
+
+#### Changelog
+
+All refinements are documented in `docs/CODE_SIMPLIFIER_CHANGELOG.md` for transparency and reference.
 
 ---
 
